@@ -117,13 +117,31 @@ def generate_groq_response(user_message, bible_verses):
 - 이모지는 최소한으로 사용"""
 
     try:
-        response = groq_client.chat.completions.create(
-            model="llama-3.1-70b-versatile",
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=1000,
-            temperature=0.7
-        )
-        return response.choices[0].message.content
+        # 사용 가능한 모델들을 순서대로 시도
+        models = [
+            "llama3-70b-8192",
+            "llama3-8b-8192", 
+            "mixtral-8x7b-32768",
+            "gemma-7b-it"
+        ]
+        
+        for model in models:
+            try:
+                response = groq_client.chat.completions.create(
+                    model=model,
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=1000,
+                    temperature=0.7
+                )
+                print(f"✅ Groq 모델 {model} 사용 중")
+                return response.choices[0].message.content
+            except Exception as model_error:
+                print(f"⚠️ {model} 모델 실패: {model_error}")
+                continue
+        
+        # 모든 모델이 실패한 경우
+        return "죄송합니다. 현재 AI 서비스에 일시적인 문제가 있습니다. 잠시 후 다시 시도해주세요."
+        
     except Exception as e:
         print(f"Groq API 오류: {e}")
         return f"응답 생성 중 오류가 발생했습니다: {str(e)}"
