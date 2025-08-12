@@ -1,9 +1,6 @@
 import os
 import json
 from flask import Flask, request, jsonify
-from groq import Groq
-from anthropic import Anthropic
-import random
 
 # Flask 앱을 초기화합니다.
 app = Flask(__name__)
@@ -21,16 +18,26 @@ user_sessions = {}
 # Groq 클라이언트 초기화
 groq_client = None
 if GROQ_API_KEY:
-    groq_client = Groq(api_key=GROQ_API_KEY)
-    print("✅ Groq API 키가 성공적으로 설정되었습니다.")
+    try:
+        from groq import Groq
+        groq_client = Groq(api_key=GROQ_API_KEY)
+        print("✅ Groq API 키가 성공적으로 설정되었습니다.")
+    except Exception as e:
+        print(f"⚠️ Groq 클라이언트 초기화 실패: {e}")
+        groq_client = None
 else:
     print("⚠️ GROQ_API_KEY 환경 변수가 설정되지 않았습니다.")
 
 # Claude 클라이언트 초기화
 claude_client = None
 if CLAUDE_API_KEY:
-    claude_client = Anthropic(api_key=CLAUDE_API_KEY)
-    print("✅ Claude API 키가 성공적으로 설정되었습니다.")
+    try:
+        from anthropic import Anthropic
+        claude_client = Anthropic(api_key=CLAUDE_API_KEY)
+        print("✅ Claude API 키가 성공적으로 설정되었습니다.")
+    except Exception as e:
+        print(f"⚠️ Claude 클라이언트 초기화 실패: {e}")
+        claude_client = None
 else:
     print("⚠️ CLAUDE_API_KEY 환경 변수가 설정되지 않았습니다.")
 
