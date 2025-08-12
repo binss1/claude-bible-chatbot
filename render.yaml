@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: kakao-bible-chatbot
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn main:app
+    envVars:
+      - key: GROQ_API_KEY
+        sync: false  # 수동으로 입력
+      - key: CLAUDE_API_KEY
+        sync: false  # 수동으로 입력
+      - key: PORT
+        value: 10000
+    healthCheckPath: /health
+    autoDeploy: true  # GitHub 푸시 시 자동 배포
