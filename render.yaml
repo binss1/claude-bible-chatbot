@@ -5,9 +5,9 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn main:app
     envVars:
-      - key: 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
+      - key: GROQ_API_KEY
         sync: false  # 수동으로 입력 (Render 대시보드에서)
-      - key: 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
+      - key: CLAUDE_API_KEY
         sync: false  # 수동으로 입력 (Render 대시보드에서)
       - key: PORT
         value: 10000
