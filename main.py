@@ -99,19 +99,19 @@ def search_bible(keywords):
     if len(expanded_keywords) < 3:
         expanded_keywords.extend(["사랑", "평안", "소망", "믿음"])
     
-    # 성경 구절 검색
+    # 성경 구절 검색 (최대 3개로 제한)
     for verse, content in BIBLE_DATA.items():
         if any(keyword in content for keyword in expanded_keywords):
             search_results.append(f"{verse}: {content}")
-            if len(search_results) >= 5:
+            if len(search_results) >= 3:  # 5개에서 3개로 줄임
                 break
     
     # 검색 결과가 없으면 기본 구절 제공
     if not search_results:
         default_verses = [
             verse for verse, content in BIBLE_DATA.items() 
-            if any(word in content for word in ["사랑", "위로", "평안", "소망", "믿음"])
-        ][:3]
+            if any(word in content for word in ["사랑", "위로", "평안"])
+        ][:2]
         search_results = [f"{verse}: {BIBLE_DATA[verse]}" for verse in default_verses]
     
     return search_results
@@ -122,35 +122,24 @@ def generate_groq_response(user_message, bible_verses):
     if not groq_client:
         return "Groq API가 설정되지 않았습니다."
     
-    verses_text = "\n".join(bible_verses) if bible_verses else "관련 성경 구절을 찾지 못했습니다."
+    verses_text = "\n".join(bible_verses[:2]) if bible_verses else ""  # 2개만 사용
     
-    # 한국어 응답을 명확히 지시하는 프롬프트
-    prompt = f"""당신은 한국어를 사용하는 따뜻하고 공감적인 기독교 상담사입니다.
-반드시 한국어로만 응답해주세요. 영어나 다른 언어는 사용하지 마세요.
+    # 짧고 간결한 프롬프트
+    prompt = f"""한국어 기독교 상담사입니다.
 
-아래 한국어 성경 구절을 참고하여 사용자의 고민에 대해 한국어로 위로와 희망의 메시지를 전해주세요.
-
-[참고 성경 구절]
+[성경]
 {verses_text}
 
-[사용자 메시지]
+[상담요청]
 {user_message}
 
-[응답 지침]
-- 반드시 한국어로만 응답하세요
-- 따뜻하고 공감적인 어조로 응답하세요
-- 성경 구절을 자연스럽게 인용하세요
-- 실질적인 위로와 격려를 제공하세요
-- 마지막에 짧은 기도나 축복의 말을 추가하세요
-- 이모지는 최소한으로 사용하세요
-
-Remember: Your entire response must be in Korean language only. Do not use English."""
+짧고 따뜻하게 위로하고 실질적 조언을 300자 이내로 전하세요. 마지막에 한 줄 기도 추가."""
 
     try:
         # 사용 가능한 모델들을 순서대로 시도
         models = [
+            "llama3-8b-8192",  # 더 가벼운 모델 먼저
             "llama3-70b-8192",
-            "llama3-8b-8192", 
             "mixtral-8x7b-32768"
         ]
         
@@ -159,21 +148,23 @@ Remember: Your entire response must be in Korean language only. Do not use Engli
                 response = groq_client.chat.completions.create(
                     model=model,
                     messages=[
-                        {"role": "system", "content": "You are a Korean Christian counselor. You must respond only in Korean language. 당신은 한국어로만 대답하는 기독교 상담사입니다."},
+                        {"role": "system", "content": "한국어로만 응답. 300자 이내로 간결하게."},
                         {"role": "user", "content": prompt}
                     ],
-                    max_tokens=400,  # 토큰 수 줄여서 응답 속도 향상
-                    temperature=0.7,
-                    timeout=3.5  # 3.5초 타임아웃
+                    max_tokens=250,  # 더 줄임
+                    temperature=0.7
                 )
-                print(f"✅ Groq 모델 {model} 사용 중")
-                return response.choices[0].message.content
+                result = response.choices[0].message.content
+                # 응답 길이 체크 및 자르기
+                if len(result) > 900:
+                    result = result[:897] + "..."
+                print(f"✅ Groq 응답 길이: {len(result)}자")
+                return result
             except Exception as model_error:
                 print(f"⚠️ {model} 모델 실패: {model_error}")
                 continue
         
-        # 모든 모델이 실패한 경우
-        return "죄송합니다. 현재 AI 서비스에 일시적인 문제가 있습니다. 잠시 후 다시 시도해주세요."
+        return "죄송합니다. 잠시 후 다시 시도해주세요."
         
     except Exception as e:
         print(f"Groq API 오류: {e}")
@@ -185,29 +176,33 @@ def generate_claude_response(user_message, bible_verses):
     if not claude_client:
         return "Claude API가 설정되지 않았습니다."
     
-    verses_text = "\n".join(bible_verses) if bible_verses else "관련 성경 구절을 찾지 못했습니다."
+    verses_text = "\n".join(bible_verses[:2]) if bible_verses else ""  # 2개만 사용
     
-    # 더 짧고 간결한 프롬프트로 속도 향상
-    prompt = f"""한국어로 응답하는 기독교 상담사입니다.
+    # 매우 짧고 간결한 프롬프트
+    prompt = f"""한국어 기독교 상담.
 
-[성경 구절]
-{verses_text}
+성경: {verses_text}
 
-[상담 요청]
-{user_message}
+요청: {user_message}
 
-위 성경 구절을 바탕으로 따뜻한 위로와 실질적 조언을 간결하게 전해주세요. 
-마지막에 짧은 기도를 추가하세요. 반드시 한국어로만 응답하세요."""
+300자 이내로 따뜻한 위로와 실용적 조언. 마지막에 한 줄 기도."""
 
     try:
-        # Claude 응답 속도 최적화
         response = claude_client.messages.create(
             model="claude-3-5-sonnet-20241022",
-            max_tokens=300,  # 토큰 수 대폭 감소
+            max_tokens=200,  # 대폭 감소
             temperature=0.7,
             messages=[{"role": "user", "content": prompt}]
         )
-        return response.content[0].text
+        result = response.content[0].text
+        
+        # 응답 길이 체크 및 자르기 (카카오톡 제한)
+        if len(result) > 900:
+            result = result[:897] + "..."
+        
+        print(f"✅ Claude 응답 길이: {len(result)}자")
+        return result
+        
     except Exception as e:
         print(f"Claude API 오류: {e}")
         # Claude 실패 시 Groq로 폴백
@@ -223,7 +218,11 @@ def kakao_chatbot():
     """카카오톡 서버로부터 요청을 받아 AI 답변을 생성하고 반환하는 함수"""
     
     # 요청 로깅
-    print(f"[카카오 요청] {request.get_json()}")
+    kakao_request = request.get_json()
+    user_id = kakao_request.get('userRequest', {}).get('user', {}).get('id', 'unknown')
+    user_message = kakao_request.get('userRequest', {}).get('utterance', '')
+    
+    print(f"[사용자 {user_id[:8]}...] {user_message}")
     
     # API 키가 하나도 설정되지 않았다면 에러 메시지
     if not groq_client and not claude_client:
@@ -232,17 +231,11 @@ def kakao_chatbot():
             "template": {
                 "outputs": [{
                     "simpleText": {
-                        "text": "⚠️ AI API가 설정되지 않았습니다. 관리자에게 문의해주세요."
+                        "text": "⚠️ AI API가 설정되지 않았습니다."
                     }
                 }]
             }
         })
-    
-    kakao_request = request.get_json()
-    user_id = kakao_request.get('userRequest', {}).get('user', {}).get('id', 'unknown')
-    user_message = kakao_request.get('userRequest', {}).get('utterance', '')
-    
-    print(f"[사용자 메시지] {user_message}")
     
     # 시작 메시지 처리
     if user_message in ['안녕하세요', '시작', '상담시작', '처음', 'start']:
@@ -283,7 +276,7 @@ def kakao_chatbot():
             "template": {
                 "outputs": [{
                     "simpleText": {
-                        "text": "⚡ 빠른 상담 모드로 설정되었습니다.\n\n무엇이든 편하게 말씀해주세요. 성경 말씀으로 위로해드리겠습니다."
+                        "text": "⚡ 빠른 상담 모드로 설정되었습니다.\n\n무엇이든 편하게 말씀해주세요."
                     }
                 }]
             }
@@ -296,7 +289,7 @@ def kakao_chatbot():
             "template": {
                 "outputs": [{
                     "simpleText": {
-                        "text": "💎 깊이있는 상담 모드로 설정되었습니다.\n\n고민을 자세히 들려주세요. 성경의 지혜로 깊이 있는 상담을 도와드리겠습니다."
+                        "text": "💎 깊이있는 상담 모드로 설정되었습니다.\n\n고민을 자세히 들려주세요."
                     }
                 }]
             }
@@ -314,7 +307,7 @@ def kakao_chatbot():
             "template": {
                 "outputs": [{
                     "simpleText": {
-                        "text": "🙏 무엇이든 편하게 말씀해주세요. 성경 말씀으로 위로해드리겠습니다."
+                        "text": "🙏 무엇이든 편하게 말씀해주세요."
                     }
                 }]
             }
@@ -347,9 +340,8 @@ def kakao_chatbot():
     
     # 실제 상담 처리
     else:
-        # 타임아웃 방지를 위해 빠른 응답 처리
         try:
-            # 사용자의 선택된 모델 확인 (기본값: groq)
+            # 사용자의 선택된 모델 확인
             selected_model = user_sessions.get(user_id, {}).get('model')
             
             # 모델이 선택되지 않았거나 사용 불가능한 경우 자동 선택
@@ -375,12 +367,16 @@ def kakao_chatbot():
             bible_verses = search_bible(keywords)
             
             # AI 응답 생성
-            print(f"[선택된 모델] {selected_model}")
+            print(f"[모델: {selected_model}]")
             
             if selected_model == 'claude' and claude_client:
                 ai_response = generate_claude_response(user_message, bible_verses)
             else:
                 ai_response = generate_groq_response(user_message, bible_verses)
+            
+            # 응답 길이 최종 체크
+            if len(ai_response) > 950:
+                ai_response = ai_response[:947] + "..."
             
             # 카카오톡 응답 생성
             response_json = {
@@ -403,17 +399,17 @@ def kakao_chatbot():
                     "messageText": "상담사변경"
                 })
             
+            print(f"[응답 완료] {len(ai_response)}자")
             return jsonify(response_json)
             
         except Exception as e:
             print(f"[오류] {e}")
-            # 오류 발생 시 빠른 기본 응답
             return jsonify({
                 "version": "2.0",
                 "template": {
                     "outputs": [{
                         "simpleText": {
-                            "text": "잠시 문제가 발생했습니다. 다시 한 번 말씀해주세요. 🙏"
+                            "text": "잠시 문제가 발생했습니다. 다시 말씀해주세요. 🙏"
                         }
                     }]
                 }
