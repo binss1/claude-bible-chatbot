@@ -115,7 +115,7 @@ def generate_claude_response(user_message, bible_verses):
     verses_text = "\n".join(bible_verses) if bible_verses else "관련 성경 구절을 찾지 못했습니다."
     prompt = f"""당신은 깊이 있고 지혜로운 기독교 상담 전문가입니다. 반드시 한국어로 응답해주세요. [참고 성경 구절]\n{verses_text}\n[사용자 메시지]\n{user_message}\n[응답 지침]\n- 반드시 한국어로 응답. 성경적 원리를 깊이 있게 설명. 사용자의 감정을 세심하게 이해하고 공감. 실제 삶에 적용 가능한 구체적 조언 제공. 필요시 관련된 다른 성경 구절도 언급. 희망적이면서도 현실적인 관점 제시. 마지막에 개인화된 기도 제안"""
     try:
-        response = claude_client.messages.create(model="claude-3.5-sonnet-20240620", max_tokens=500, temperature=0.7, messages=[{"role": "user", "content": prompt}])
+        response = claude_client.messages.create(model="claude-3.5-sonnet-20241022", max_tokens=500, temperature=0.7, messages=[{"role": "user", "content": prompt}])
         return response.content[0].text
     except Exception as e:
         print(f"Claude API 오류: {e}")
