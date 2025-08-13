@@ -162,10 +162,9 @@ def kakao_chatbot():
 
     print(f"[사용자 메시지] {user_message}")
 
-    # ✅ [수정] 메시지 내용을 기준으로 즉시 응답할지, 백그라운드 처리할지 결정
+    # 메시지 내용을 기준으로 즉시 응답할지, 백그라운드 처리할지 결정
     
     # 1. 즉시 응답이 필요한 키워드 처리 (버튼 표시 등)
-    # '선택'으로 끝나는 메시지는 모델 선택으로 간주
     if user_message in ['안녕하세요', '시작', '상담시작', '처음', 'start', '상담사변경', '모델변경', '변경'] or user_message.endswith('선택'):
         print("즉시 응답 처리 시작")
         if user_message in ['안녕하세요', '시작', '상담시작', '처음', 'start', '상담사변경', '모델변경', '변경']:
@@ -195,7 +194,6 @@ def kakao_chatbot():
     
     # 2. 그 외 모든 메시지는 AI 상담으로 간주하고 백그라운드 처리
     else:
-        # 모델이 선택되지 않았다면, 사용자에게 선택을 유도
         if not user_sessions.get(user_id):
             print("모델 미선택 사용자, 선택 유도")
             response = {"version": "2.0", "template": { "outputs": [{"simpleText": {"text": "어떤 상담을 원하시는지 먼저 선택해주세요. 🙏"}}], "quickReplies": []}}
@@ -206,21 +204,17 @@ def kakao_chatbot():
                 ])
             return jsonify(response)
 
-        # 모델이 선택된 상태이므로 백그라운드 처리
         if callback_url:
             print(f"콜백 요청 수신. 백그라운드 처리를 시작합니다. URL: {callback_url}")
             thread = threading.Thread(target=process_and_callback, args=(user_id, user_message, callback_url))
             thread.daemon = True
             thread.start()
-            # ✅ "콜백을 사용하겠다"는 약속을 담아 응답합니다.
             return jsonify({
                 "version": "2.0",
-                "useCallback": true
+                "useCallback": True  # ✅ 올바른 파이썬 문법으로 수정
             })
         else:
-            # 혹시 callbackUrl 없이 요청이 오는 경우에 대한 예외 처리
             print("⚠️ 경고: callbackUrl 없이 상담 내용이 수신되었습니다. 즉시 응답을 시도합니다.")
-            # 이 경우 빠른 응답이 가능한 Groq 모델을 우선적으로 사용하거나 간단한 안내 메시지 반환
             ai_response = generate_groq_response(user_message, search_bible(user_message.split()))
             return jsonify({"version": "2.0", "template": {"outputs": [{"simpleText": {"text": ai_response}}]}})
 
