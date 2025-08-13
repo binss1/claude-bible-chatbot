@@ -100,8 +100,11 @@ def generate_groq_response(user_message, bible_verses):
     
     verses_text = "\n".join(bible_verses) if bible_verses else "관련 성경 구절을 찾지 못했습니다."
     
-    prompt = f"""당신은 따뜻하고 공감적인 기독교 상담사입니다. 
-아래 성경 구절을 참고하여 사용자의 고민에 대해 위로와 희망의 메시지를 전해주세요.
+    # 한국어 응답을 명확히 지시하는 프롬프트
+    prompt = f"""당신은 한국어를 사용하는 따뜻하고 공감적인 기독교 상담사입니다.
+반드시 한국어로만 응답해주세요. 영어나 다른 언어는 사용하지 마세요.
+
+아래 한국어 성경 구절을 참고하여 사용자의 고민에 대해 한국어로 위로와 희망의 메시지를 전해주세요.
 
 [참고 성경 구절]
 {verses_text}
@@ -110,11 +113,14 @@ def generate_groq_response(user_message, bible_verses):
 {user_message}
 
 [응답 지침]
-- 따뜻하고 공감적인 어조로 응답
-- 성경 구절을 자연스럽게 인용
-- 실질적인 위로와 격려 제공
-- 마지막에 짧은 기도나 축복의 말 추가
-- 이모지는 최소한으로 사용"""
+- 반드시 한국어로만 응답하세요
+- 따뜻하고 공감적인 어조로 응답하세요
+- 성경 구절을 자연스럽게 인용하세요
+- 실질적인 위로와 격려를 제공하세요
+- 마지막에 짧은 기도나 축복의 말을 추가하세요
+- 이모지는 최소한으로 사용하세요
+
+Remember: Your entire response must be in Korean language only. Do not use English."""
 
     try:
         # 사용 가능한 모델들을 순서대로 시도
@@ -129,7 +135,10 @@ def generate_groq_response(user_message, bible_verses):
             try:
                 response = groq_client.chat.completions.create(
                     model=model,
-                    messages=[{"role": "user", "content": prompt}],
+                    messages=[
+                        {"role": "system", "content": "You are a Korean Christian counselor. You must respond only in Korean language. 당신은 한국어로만 대답하는 기독교 상담사입니다."},
+                        {"role": "user", "content": prompt}
+                    ],
                     max_tokens=1000,
                     temperature=0.7
                 )
@@ -155,6 +164,8 @@ def generate_claude_response(user_message, bible_verses):
     verses_text = "\n".join(bible_verses) if bible_verses else "관련 성경 구절을 찾지 못했습니다."
     
     prompt = f"""당신은 깊이 있고 지혜로운 기독교 상담 전문가입니다.
+반드시 한국어로 응답해주세요.
+
 아래 성경 구절을 깊이 있게 해석하여 사용자의 상황에 맞는 통찰력 있는 조언을 제공해주세요.
 
 [참고 성경 구절]
@@ -164,6 +175,7 @@ def generate_claude_response(user_message, bible_verses):
 {user_message}
 
 [응답 지침]
+- 반드시 한국어로 응답
 - 성경적 원리를 깊이 있게 설명
 - 사용자의 감정을 세심하게 이해하고 공감
 - 실제 삶에 적용 가능한 구체적 조언 제공
