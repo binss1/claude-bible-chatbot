@@ -212,7 +212,11 @@ def kakao_chatbot():
             thread = threading.Thread(target=process_and_callback, args=(user_id, user_message, callback_url))
             thread.daemon = True
             thread.start()
-            return jsonify({}), 200
+            # ✅ "콜백을 사용하겠다"는 약속을 담아 응답합니다.
+            return jsonify({
+                "version": "2.0",
+                "useCallback": true
+            })
         else:
             # 혹시 callbackUrl 없이 요청이 오는 경우에 대한 예외 처리
             print("⚠️ 경고: callbackUrl 없이 상담 내용이 수신되었습니다. 즉시 응답을 시도합니다.")
