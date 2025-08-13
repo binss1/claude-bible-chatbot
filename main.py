@@ -145,7 +145,7 @@ Remember: Your entire response must be in Korean language only. Do not use Engli
                         {"role": "system", "content": "You are a Korean Christian counselor. You must respond only in Korean language. 당신은 한국어로만 대답하는 기독교 상담사입니다."},
                         {"role": "user", "content": prompt}
                     ],
-                    max_tokens=1000,  # 토큰 수 줄여서 응답 속도 향상
+                    max_tokens=500,  # 토큰 수 줄여서 응답 속도 향상
                     temperature=0.7,
                     timeout=4.0  # 4초 타임아웃 설정
                 )
@@ -194,7 +194,7 @@ def generate_claude_response(user_message, bible_verses):
         # Claude는 기본적으로 빠르므로 타임아웃 걱정 없음
         response = claude_client.messages.create(
             model="claude-3-5-sonnet-20241022",
-            max_tokens=1000,  # 토큰 수 줄여서 응답 속도 향상
+            max_tokens=500,  # 토큰 수 줄여서 응답 속도 향상
             temperature=0.7,
             messages=[{"role": "user", "content": prompt}]
         )
