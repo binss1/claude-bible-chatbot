@@ -68,34 +68,51 @@ def search_bible(keywords):
     if isinstance(keywords, str):
         keywords = [keywords]
     
-    # 사용자 입력에서 키워드 추출
+    # 사용자 입력에서 키워드 추출 및 확장
     expanded_keywords = []
     for keyword in keywords:
         expanded_keywords.append(keyword)
-        # 관련 키워드 자동 추가
+        # 특정 키워드에 대한 추가 관련어
         if "외로" in keyword or "혼자" in keyword:
-            expanded_keywords.extend(["외로", "고독", "혼자", "홀로"])
+            expanded_keywords.extend(["외로", "고독", "혼자", "홀로", "위로"])
         elif "힘들" in keyword or "어려" in keyword:
-            expanded_keywords.extend(["힘들", "어려움", "고난", "시련"])
+            expanded_keywords.extend(["힘들", "어려움", "고난", "시련", "인내"])
         elif "감사" in keyword:
-            expanded_keywords.extend(["감사", "감사하", "은혜"])
+            expanded_keywords.extend(["감사", "감사하", "은혜", "축복"])
         elif "사랑" in keyword:
-            expanded_keywords.extend(["사랑", "사랑하"])
+            expanded_keywords.extend(["사랑", "사랑하", "아끼", "귀하"])
         elif "기도" in keyword:
-            expanded_keywords.extend(["기도", "간구"])
+            expanded_keywords.extend(["기도", "간구", "부르짖"])
         elif "배우자" in keyword or "부부" in keyword or "결혼" in keyword:
-            expanded_keywords.extend(["사랑", "인내", "용서", "화목"])
+            expanded_keywords.extend(["사랑", "인내", "용서", "화목", "아내", "남편"])
         elif "갈등" in keyword or "다툼" in keyword:
-            expanded_keywords.extend(["화평", "용서", "사랑", "인내"])
+            expanded_keywords.extend(["화평", "용서", "사랑", "인내", "화목"])
+        elif "두려" in keyword or "무서" in keyword:
+            expanded_keywords.extend(["두려", "무서", "담대", "용기"])
+        elif "죽" in keyword or "죽음" in keyword:
+            expanded_keywords.extend(["죽음", "생명", "영생", "부활"])
     
     # 중복 제거
     expanded_keywords = list(set(expanded_keywords))
     
+    # 키워드가 너무 적으면 일반적인 축복 구절 추가
+    if len(expanded_keywords) < 3:
+        expanded_keywords.extend(["사랑", "평안", "소망", "믿음"])
+    
+    # 성경 구절 검색
     for verse, content in BIBLE_DATA.items():
         if any(keyword in content for keyword in expanded_keywords):
             search_results.append(f"{verse}: {content}")
             if len(search_results) >= 5:
                 break
+    
+    # 검색 결과가 없으면 기본 구절 제공
+    if not search_results:
+        default_verses = [
+            verse for verse, content in BIBLE_DATA.items() 
+            if any(word in content for word in ["사랑", "위로", "평안", "소망", "믿음"])
+        ][:3]
+        search_results = [f"{verse}: {BIBLE_DATA[verse]}" for verse in default_verses]
     
     return search_results
 
@@ -145,9 +162,9 @@ Remember: Your entire response must be in Korean language only. Do not use Engli
                         {"role": "system", "content": "You are a Korean Christian counselor. You must respond only in Korean language. 당신은 한국어로만 대답하는 기독교 상담사입니다."},
                         {"role": "user", "content": prompt}
                     ],
-                    max_tokens=500,  # 토큰 수 줄여서 응답 속도 향상
+                    max_tokens=400,  # 토큰 수 줄여서 응답 속도 향상
                     temperature=0.7,
-                    timeout=4.0  # 4초 타임아웃 설정
+                    timeout=3.5  # 3.5초 타임아웃
                 )
                 print(f"✅ Groq 모델 {model} 사용 중")
                 return response.choices[0].message.content
@@ -170,31 +187,23 @@ def generate_claude_response(user_message, bible_verses):
     
     verses_text = "\n".join(bible_verses) if bible_verses else "관련 성경 구절을 찾지 못했습니다."
     
-    prompt = f"""당신은 깊이 있고 지혜로운 기독교 상담 전문가입니다.
-반드시 한국어로 응답해주세요.
+    # 더 짧고 간결한 프롬프트로 속도 향상
+    prompt = f"""한국어로 응답하는 기독교 상담사입니다.
 
-아래 성경 구절을 깊이 있게 해석하여 사용자의 상황에 맞는 통찰력 있는 조언을 제공해주세요.
-
-[참고 성경 구절]
+[성경 구절]
 {verses_text}
 
-[사용자 메시지]
+[상담 요청]
 {user_message}
 
-[응답 지침]
-- 반드시 한국어로 응답
-- 성경적 원리를 깊이 있게 설명
-- 사용자의 감정을 세심하게 이해하고 공감
-- 실제 삶에 적용 가능한 구체적 조언 제공
-- 필요시 관련된 다른 성경 구절도 언급
-- 희망적이면서도 현실적인 관점 제시
-- 마지막에 개인화된 기도 제안"""
+위 성경 구절을 바탕으로 따뜻한 위로와 실질적 조언을 간결하게 전해주세요. 
+마지막에 짧은 기도를 추가하세요. 반드시 한국어로만 응답하세요."""
 
     try:
-        # Claude는 기본적으로 빠르므로 타임아웃 걱정 없음
+        # Claude 응답 속도 최적화
         response = claude_client.messages.create(
             model="claude-3-5-sonnet-20241022",
-            max_tokens=500,  # 토큰 수 줄여서 응답 속도 향상
+            max_tokens=300,  # 토큰 수 대폭 감소
             temperature=0.7,
             messages=[{"role": "user", "content": prompt}]
         )
@@ -365,11 +374,6 @@ def kakao_chatbot():
             keywords = user_message.split()
             bible_verses = search_bible(keywords)
             
-            # 키워드가 없으면 기본 키워드로 검색
-            if not bible_verses:
-                default_keywords = ["사랑", "위로", "평안", "믿음", "소망", "기쁨"]
-                bible_verses = search_bible(default_keywords)
-            
             # AI 응답 생성
             print(f"[선택된 모델] {selected_model}")
             
@@ -451,6 +455,7 @@ def home():
                 <h2>서비스 상태</h2>
                 <p>✅ 서버 정상 작동 중</p>
                 <p>📖 카카오톡 채널과 연동되어 있습니다.</p>
+                <p>🔗 서비스 URL: https://claude-bible-chatbot.onrender.com</p>
             </div>
             <div class="endpoint">
                 <h3>API Endpoints</h3>
@@ -462,23 +467,22 @@ def home():
     """
 
 
-# 서버 슬립 방지 (선택사항)
+# 서버 슬립 방지
 def keep_alive():
     """Render 무료 플랜 슬립 방지"""
     while True:
         time.sleep(600)  # 10분마다
         try:
             # 자기 자신에게 헬스체크 요청
-            if os.environ.get('RENDER_EXTERNAL_URL'):
-                url = f"{os.environ.get('RENDER_EXTERNAL_URL')}/health"
-                requests.get(url, timeout=5)
-                print(f"[Keep-Alive] 헬스체크 완료")
+            url = "https://claude-bible-chatbot.onrender.com/health"
+            requests.get(url, timeout=5)
+            print(f"[Keep-Alive] 헬스체크 완료")
         except:
             pass
 
-# 백그라운드 스레드로 keep_alive 실행 (선택사항)
-# 주석 해제하면 서버가 자동으로 깨어있음 유지
-# threading.Thread(target=keep_alive, daemon=True).start()
+# 백그라운드 스레드로 keep_alive 실행 - 서버 항상 깨어있음
+threading.Thread(target=keep_alive, daemon=True).start()
+print("🔄 Keep-Alive 스레드 시작 - 서버가 항상 깨어있습니다")
 
 
 if __name__ == '__main__':
