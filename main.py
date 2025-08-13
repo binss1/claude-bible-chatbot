@@ -36,7 +36,8 @@ claude_client = None
 if CLAUDE_API_KEY:
     try:
         from anthropic import Anthropic
-        claude_client = Anthropic(api_key=CLAUDE_API_KEY)
+        # 💡 Claude API 호출 시 타임아웃을 넉넉하게 설정 (예: 60초)
+        claude_client = Anthropic(api_key=CLAUDE_API_KEY, timeout=60.0)
         print("✅ Claude API 키가 성공적으로 설정되었습니다.")
     except Exception as e:
         print(f"⚠️ Claude 클라이언트 초기화 실패: {e}")
@@ -64,15 +65,12 @@ def search_bible(keywords):
     if not BIBLE_DATA:
         return search_results
     
-    # 검색어를 확장
     if isinstance(keywords, str):
         keywords = [keywords]
     
-    # 사용자 입력에서 키워드 추출
     expanded_keywords = []
     for keyword in keywords:
         expanded_keywords.append(keyword)
-        # 관련 키워드 자동 추가
         if "외로" in keyword or "혼자" in keyword:
             expanded_keywords.extend(["외로", "고독", "혼자", "홀로"])
         elif "힘들" in keyword or "어려" in keyword:
@@ -88,7 +86,6 @@ def search_bible(keywords):
         elif "갈등" in keyword or "다툼" in keyword:
             expanded_keywords.extend(["화평", "용서", "사랑", "인내"])
     
-    # 중복 제거
     expanded_keywords = list(set(expanded_keywords))
     
     for verse, content in BIBLE_DATA.items():
@@ -107,36 +104,18 @@ def generate_groq_response(user_message, bible_verses):
     
     verses_text = "\n".join(bible_verses) if bible_verses else "관련 성경 구절을 찾지 못했습니다."
     
-    # 한국어 응답을 명확히 지시하는 프롬프트
     prompt = f"""당신은 한국어를 사용하는 따뜻하고 공감적인 기독교 상담사입니다.
 반드시 한국어로만 응답해주세요. 영어나 다른 언어는 사용하지 마세요.
-
-아래 한국어 성경 구절을 참고하여 사용자의 고민에 대해 한국어로 위로와 희망의 메시지를 전해주세요.
-
 [참고 성경 구절]
 {verses_text}
-
 [사용자 메시지]
 {user_message}
-
 [응답 지침]
-- 반드시 한국어로만 응답하세요
-- 따뜻하고 공감적인 어조로 응답하세요
-- 성경 구절을 자연스럽게 인용하세요
-- 실질적인 위로와 격려를 제공하세요
-- 마지막에 짧은 기도나 축복의 말을 추가하세요
-- 이모지는 최소한으로 사용하세요
-
+- 반드시 한국어로만 응답하세요. 따뜻하고 공감적인 어조로, 성경 구절을 자연스럽게 인용하며 실질적인 위로와 격려를 제공하세요. 마지막에 짧은 기도나 축복의 말을 추가하세요. 이모지는 최소한으로 사용하세요.
 Remember: Your entire response must be in Korean language only. Do not use English."""
 
     try:
-        # 사용 가능한 모델들을 순서대로 시도
-        models = [
-            "llama3-70b-8192",
-            "llama3-8b-8192", 
-            "mixtral-8x7b-32768"
-        ]
-        
+        models = ["llama3-70b-8192", "llama3-8b-8192", "mixtral-8x7b-32768"]
         for model in models:
             try:
                 response = groq_client.chat.completions.create(
@@ -145,17 +124,15 @@ Remember: Your entire response must be in Korean language only. Do not use Engli
                         {"role": "system", "content": "You are a Korean Christian counselor. You must respond only in Korean language. 당신은 한국어로만 대답하는 기독교 상담사입니다."},
                         {"role": "user", "content": prompt}
                     ],
-                    max_tokens=500,  # 토큰 수 줄여서 응답 속도 향상
+                    max_tokens=500,
                     temperature=0.7,
-                    timeout=4.0  # 4초 타임아웃 설정
+                    timeout=10.0 # Groq 응답 타임아웃도 넉넉히 설정
                 )
                 print(f"✅ Groq 모델 {model} 사용 중")
                 return response.choices[0].message.content
             except Exception as model_error:
                 print(f"⚠️ {model} 모델 실패: {model_error}")
                 continue
-        
-        # 모든 모델이 실패한 경우
         return "죄송합니다. 현재 AI 서비스에 일시적인 문제가 있습니다. 잠시 후 다시 시도해주세요."
         
     except Exception as e:
@@ -172,251 +149,175 @@ def generate_claude_response(user_message, bible_verses):
     
     prompt = f"""당신은 깊이 있고 지혜로운 기독교 상담 전문가입니다.
 반드시 한국어로 응답해주세요.
-
-아래 성경 구절을 깊이 있게 해석하여 사용자의 상황에 맞는 통찰력 있는 조언을 제공해주세요.
-
 [참고 성경 구절]
 {verses_text}
-
 [사용자 메시지]
 {user_message}
-
 [응답 지침]
-- 반드시 한국어로 응답
-- 성경적 원리를 깊이 있게 설명
-- 사용자의 감정을 세심하게 이해하고 공감
-- 실제 삶에 적용 가능한 구체적 조언 제공
-- 필요시 관련된 다른 성경 구절도 언급
-- 희망적이면서도 현실적인 관점 제시
-- 마지막에 개인화된 기도 제안"""
+- 반드시 한국어로 응답. 성경적 원리를 깊이 있게 설명. 사용자의 감정을 세심하게 이해하고 공감. 실제 삶에 적용 가능한 구체적 조언 제공. 필요시 관련된 다른 성경 구절도 언급. 희망적이면서도 현실적인 관점 제시. 마지막에 개인화된 기도 제안"""
 
     try:
-        # Claude는 기본적으로 빠르므로 타임아웃 걱정 없음
         response = claude_client.messages.create(
-            model="claude-3-5-sonnet-20241022",
-            max_tokens=500,  # 토큰 수 줄여서 응답 속도 향상
+            model="claude-3.5-sonnet-20240620", # 💡 안정적인 버전으로 모델명 변경 권장
+            max_tokens=500,
             temperature=0.7,
             messages=[{"role": "user", "content": prompt}]
         )
         return response.content[0].text
     except Exception as e:
         print(f"Claude API 오류: {e}")
-        # Claude 실패 시 Groq로 폴백
         if groq_client:
             print("Claude 실패, Groq로 전환")
             return generate_groq_response(user_message, bible_verses)
         return "죄송합니다. 잠시 후 다시 시도해주세요."
 
 
-# 카카오톡 요청을 처리할 URL 경로를 설정합니다.
+# ✅ [신규] 백그라운드에서 AI 응답을 처리하고 콜백으로 전송하는 함수
+def process_and_callback(user_id, user_message, callback_url):
+    """AI 응답 생성 후 callbackUrl로 결과를 POST 요청하는 함수"""
+    try:
+        # 사용자의 선택된 모델 확인
+        selected_model = user_sessions.get(user_id, {}).get('model')
+        if not selected_model:
+            selected_model = 'groq' if groq_client else 'claude'
+
+        # 성경 구절 검색
+        keywords = user_message.split()
+        bible_verses = search_bible(keywords)
+        if not bible_verses:
+            default_keywords = ["사랑", "위로", "평안", "믿음", "소망", "기쁨"]
+            bible_verses = search_bible(default_keywords)
+
+        # AI 응답 생성
+        print(f"[백그라운드 처리] 선택된 모델: {selected_model}")
+        if selected_model == 'claude' and claude_client:
+            ai_response = generate_claude_response(user_message, bible_verses)
+        else:
+            ai_response = generate_groq_response(user_message, bible_verses)
+        
+        # 카카오톡에 보낼 최종 응답 JSON 구성
+        response_data = {
+            "version": "2.0",
+            "template": {
+                "outputs": [{"simpleText": {"text": ai_response}}],
+                "quickReplies": []
+            }
+        }
+
+        if groq_client and claude_client:
+            response_data["template"]["quickReplies"].append({
+                "label": "🔄 상담 방식 변경",
+                "action": "message",
+                "messageText": "상담사변경"
+            })
+
+        # 콜백 URL로 결과 전송 (타임아웃 10초)
+        requests.post(callback_url, json=response_data, timeout=10)
+        print(f"✅ 콜백 성공: {callback_url}")
+
+    except Exception as e:
+        print(f"🚨 콜백 처리 중 오류: {e}")
+        # 오류 발생 시 사용자에게 오류 메시지 전송
+        error_response = {
+            "version": "2.0",
+            "template": {"outputs": [{"simpleText": {"text": "죄송합니다, 응답 생성 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."}}]}
+        }
+        requests.post(callback_url, json=error_response, timeout=10)
+
+
+# ✅ [수정] 카카오톡 요청 처리 로직 변경
 @app.route('/kakao', methods=['POST'])
 def kakao_chatbot():
-    """카카오톡 서버로부터 요청을 받아 AI 답변을 생성하고 반환하는 함수"""
-    
-    # 요청 로깅
-    print(f"[카카오 요청] {request.get_json()}")
-    
-    # API 키가 하나도 설정되지 않았다면 에러 메시지
-    if not groq_client and not claude_client:
-        return jsonify({
-            "version": "2.0",
-            "template": {
-                "outputs": [{
-                    "simpleText": {
-                        "text": "⚠️ AI API가 설정되지 않았습니다. 관리자에게 문의해주세요."
-                    }
-                }]
-            }
-        })
-    
+    """카카오톡 서버로부터 요청을 받아 처리하는 메인 함수"""
     kakao_request = request.get_json()
-    user_id = kakao_request.get('userRequest', {}).get('user', {}).get('id', 'unknown')
-    user_message = kakao_request.get('userRequest', {}).get('utterance', '')
-    
+    print(f"[카카오 요청] {kakao_request}")
+
+    user_request_data = kakao_request.get('userRequest', {})
+    user_id = user_request_data.get('user', {}).get('id', 'unknown')
+    user_message = user_request_data.get('utterance', '')
+    callback_url = user_request_data.get('callbackUrl')
+
     print(f"[사용자 메시지] {user_message}")
-    
-    # 시작 메시지 처리
-    if user_message in ['안녕하세요', '시작', '상담시작', '처음', 'start']:
-        return jsonify({
-            "version": "2.0",
-            "template": {
-                "outputs": [{
-                    "simpleText": {
-                        "text": "🙏 안녕하세요! 성경 말씀 상담 챗봇입니다.\n\n어떤 방식의 상담을 원하시나요?"
-                    }
-                }],
-                "quickReplies": [
-                    {
-                        "label": "🚀 빠른 상담",
-                        "action": "message",
-                        "messageText": "빠른상담선택"
-                    },
-                    {
-                        "label": "💎 깊이있는 상담",
-                        "action": "message",
-                        "messageText": "정밀상담선택"
-                    }
-                ] if groq_client and claude_client else [
-                    {
-                        "label": "상담 시작하기",
-                        "action": "message",
-                        "messageText": "상담시작하기"
-                    }
-                ]
-            }
-        })
-    
-    # 모델 선택 처리
-    elif user_message == "빠른상담선택" and groq_client:
-        user_sessions[user_id] = {'model': 'groq'}
-        return jsonify({
-            "version": "2.0",
-            "template": {
-                "outputs": [{
-                    "simpleText": {
-                        "text": "⚡ 빠른 상담 모드로 설정되었습니다.\n\n무엇이든 편하게 말씀해주세요. 성경 말씀으로 위로해드리겠습니다."
-                    }
-                }]
-            }
-        })
-    
-    elif user_message == "정밀상담선택" and claude_client:
-        user_sessions[user_id] = {'model': 'claude'}
-        return jsonify({
-            "version": "2.0",
-            "template": {
-                "outputs": [{
-                    "simpleText": {
-                        "text": "💎 깊이있는 상담 모드로 설정되었습니다.\n\n고민을 자세히 들려주세요. 성경의 지혜로 깊이 있는 상담을 도와드리겠습니다."
-                    }
-                }]
-            }
-        })
-    
-    elif user_message == "상담시작하기":
-        # 단일 모델만 있는 경우
-        if groq_client and not claude_client:
-            user_sessions[user_id] = {'model': 'groq'}
-        elif claude_client and not groq_client:
-            user_sessions[user_id] = {'model': 'claude'}
+
+    # 💡 1. 콜백 URL이 있는 요청 처리 (시간이 오래 걸리는 실제 상담)
+    if callback_url:
+        print(f"콜백 요청 수신. 백그라운드 처리를 시작합니다. URL: {callback_url}")
+        # 백그라운드 스레드에서 AI 처리 및 콜백 전송 실행
+        thread = threading.Thread(target=process_and_callback, args=(user_id, user_message, callback_url))
+        thread.daemon = True
+        thread.start()
         
-        return jsonify({
-            "version": "2.0",
-            "template": {
-                "outputs": [{
-                    "simpleText": {
-                        "text": "🙏 무엇이든 편하게 말씀해주세요. 성경 말씀으로 위로해드리겠습니다."
-                    }
-                }]
-            }
-        })
-    
-    # 상담사 변경 요청
-    elif user_message in ['상담사변경', '모델변경', '변경']:
-        return jsonify({
-            "version": "2.0",
-            "template": {
-                "outputs": [{
-                    "simpleText": {
-                        "text": "상담 방식을 변경하시겠습니까?"
-                    }
-                }],
-                "quickReplies": [
-                    {
-                        "label": "🚀 빠른 상담",
-                        "action": "message",
-                        "messageText": "빠른상담선택"
-                    },
-                    {
-                        "label": "💎 깊이있는 상담",
-                        "action": "message",
-                        "messageText": "정밀상담선택"
-                    }
-                ] if groq_client and claude_client else []
-            }
-        })
-    
-    # 실제 상담 처리
+        # 카카오에는 즉시 '작업 시작'을 알리는 빈 응답 전송
+        return jsonify({}), 200
+
+    # 💡 2. 콜백 URL이 없는 요청 처리 (버튼 클릭 등 즉시 응답)
     else:
-        # 타임아웃 방지를 위해 빠른 응답 처리
-        try:
-            # 사용자의 선택된 모델 확인 (기본값: groq)
-            selected_model = user_sessions.get(user_id, {}).get('model')
-            
-            # 모델이 선택되지 않았거나 사용 불가능한 경우 자동 선택
-            if not selected_model:
-                if groq_client:
-                    selected_model = 'groq'
-                elif claude_client:
-                    selected_model = 'claude'
-                else:
-                    return jsonify({
-                        "version": "2.0",
-                        "template": {
-                            "outputs": [{
-                                "simpleText": {
-                                    "text": "⚠️ 사용 가능한 AI 모델이 없습니다."
-                                }
-                            }]
-                        }
-                    })
-            
-            # 성경 구절 검색
-            keywords = user_message.split()
-            bible_verses = search_bible(keywords)
-            
-            # 키워드가 없으면 기본 키워드로 검색
-            if not bible_verses:
-                default_keywords = ["사랑", "위로", "평안", "믿음", "소망", "기쁨"]
-                bible_verses = search_bible(default_keywords)
-            
-            # AI 응답 생성
-            print(f"[선택된 모델] {selected_model}")
-            
-            if selected_model == 'claude' and claude_client:
-                ai_response = generate_claude_response(user_message, bible_verses)
-            else:
-                ai_response = generate_groq_response(user_message, bible_verses)
-            
-            # 카카오톡 응답 생성
-            response_json = {
+        # 시작 메시지, 모델 선택, 상담사 변경 등 빠른 응답이 필요한 경우
+        if user_message in ['안녕하세요', '시작', '상담시작', '처음', 'start']:
+            response = {
                 "version": "2.0",
                 "template": {
-                    "outputs": [{
-                        "simpleText": {
-                            "text": ai_response
-                        }
-                    }],
+                    "outputs": [{"simpleText": {"text": "🙏 안녕하세요! 성경 말씀 상담 챗봇입니다.\n\n어떤 방식의 상담을 원하시나요?"}}],
                     "quickReplies": []
                 }
             }
-            
-            # 두 모델이 모두 사용 가능한 경우에만 변경 버튼 추가
             if groq_client and claude_client:
-                response_json["template"]["quickReplies"].append({
-                    "label": "🔄 상담 방식 변경",
-                    "action": "message",
-                    "messageText": "상담사변경"
-                })
-            
-            return jsonify(response_json)
-            
-        except Exception as e:
-            print(f"[오류] {e}")
-            # 오류 발생 시 빠른 기본 응답
+                response["template"]["quickReplies"].extend([
+                    {"label": "🚀 빠른 상담", "action": "message", "messageText": "빠른상담선택"},
+                    {"label": "💎 깊이있는 상담", "action": "message", "messageText": "정밀상담선택"}
+                ])
+            else:
+                 response["template"]["quickReplies"].append({"label": "상담 시작하기", "action": "message", "messageText": "상담시작하기"})
+            return jsonify(response)
+
+        elif user_message == "빠른상담선택" and groq_client:
+            user_sessions[user_id] = {'model': 'groq'}
             return jsonify({
                 "version": "2.0",
+                "template": {"outputs": [{"simpleText": {"text": "⚡ 빠른 상담 모드로 설정되었습니다.\n\n무엇이든 편하게 말씀해주세요. 성경 말씀으로 위로해드리겠습니다."}}]}
+            })
+
+        elif user_message == "정밀상담선택" and claude_client:
+            user_sessions[user_id] = {'model': 'claude'}
+            return jsonify({
+                "version": "2.0",
+                "template": {"outputs": [{"simpleText": {"text": "💎 깊이있는 상담 모드로 설정되었습니다.\n\n고민을 자세히 들려주세요. 성경의 지혜로 깊이 있는 상담을 도와드리겠습니다."}}]}
+            })
+
+        elif user_message == "상담시작하기":
+            if groq_client and not claude_client: user_sessions[user_id] = {'model': 'groq'}
+            elif claude_client and not groq_client: user_sessions[user_id] = {'model': 'claude'}
+            return jsonify({
+                "version": "2.0",
+                "template": {"outputs": [{"simpleText": {"text": "🙏 무엇이든 편하게 말씀해주세요. 성경 말씀으로 위로해드리겠습니다."}}]}
+            })
+            
+        elif user_message in ['상담사변경', '모델변경', '변경']:
+            response = {
+                "version": "2.0",
+                "template": { "outputs": [{"simpleText": {"text": "상담 방식을 변경하시겠습니까?"}}], "quickReplies": [] }
+            }
+            if groq_client and claude_client:
+                 response["template"]["quickReplies"].extend([
+                    {"label": "🚀 빠른 상담", "action": "message", "messageText": "빠른상담선택"},
+                    {"label": "💎 깊이있는 상담", "action": "message", "messageText": "정밀상담선택"}
+                ])
+            return jsonify(response)
+        
+        # 콜백 없이 들어온 일반 메시지에 대한 예외 처리
+        else:
+             return jsonify({
+                "version": "2.0",
                 "template": {
-                    "outputs": [{
-                        "simpleText": {
-                            "text": "잠시 문제가 발생했습니다. 다시 한 번 말씀해주세요. 🙏"
-                        }
-                    }]
+                    "outputs": [{"simpleText": {"text": "어떤 상담을 원하시는지 먼저 선택해주세요. 🙏"}}],
+                    "quickReplies": [
+                        {"label": "🚀 빠른 상담", "action": "message", "messageText": "빠른상담선택"},
+                        {"label": "💎 깊이있는 상담", "action": "message", "messageText": "정밀상담선택"}
+                    ]
                 }
             })
 
 
-# 헬스체크 엔드포인트 (Render.com 상태 확인용)
 @app.route('/health', methods=['GET'])
 def health_check():
     """서버 상태를 확인하는 엔드포인트"""
@@ -428,60 +329,13 @@ def health_check():
     }
     return jsonify(status)
 
-
-# 루트 경로 처리
 @app.route('/', methods=['GET'])
 def home():
     """홈페이지"""
     return """
-    <html>
-        <head>
-            <title>성경 상담 챗봇 API</title>
-            <style>
-                body { font-family: Arial, sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; }
-                h1 { color: #333; }
-                .status { background: #f0f0f0; padding: 15px; border-radius: 5px; margin: 20px 0; }
-                .endpoint { background: #e8f4f8; padding: 10px; margin: 10px 0; border-left: 3px solid #007bff; }
-                code { background: #f4f4f4; padding: 2px 5px; border-radius: 3px; }
-            </style>
-        </head>
-        <body>
-            <h1>🙏 성경 상담 챗봇 API</h1>
-            <div class="status">
-                <h2>서비스 상태</h2>
-                <p>✅ 서버 정상 작동 중</p>
-                <p>📖 카카오톡 채널과 연동되어 있습니다.</p>
-            </div>
-            <div class="endpoint">
-                <h3>API Endpoints</h3>
-                <p><code>POST /kakao</code> - 카카오톡 챗봇 요청 처리</p>
-                <p><code>GET /health</code> - 서버 상태 확인</p>
-            </div>
-        </body>
-    </html>
+    <html><head><title>성경 상담 챗봇 API</title><style>body { font-family: Arial, sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; } h1 { color: #333; } .status { background: #f0f0f0; padding: 15px; border-radius: 5px; margin: 20px 0; } .endpoint { background: #e8f4f8; padding: 10px; margin: 10px 0; border-left: 3px solid #007bff; } code { background: #f4f4f4; padding: 2px 5px; border-radius: 3px; }</style></head><body><h1>🙏 성경 상담 챗봇 API</h1><div class="status"><h2>서비스 상태</h2><p>✅ 서버 정상 작동 중</p><p>📖 카카오톡 채널과 연동되어 있습니다.</p></div><div class="endpoint"><h3>API Endpoints</h3><p><code>POST /kakao</code> - 카카오톡 챗봇 요청 처리</p><p><code>GET /health</code> - 서버 상태 확인</p></div></body></html>
     """
 
-
-# 서버 슬립 방지 (선택사항)
-def keep_alive():
-    """Render 무료 플랜 슬립 방지"""
-    while True:
-        time.sleep(600)  # 10분마다
-        try:
-            # 자기 자신에게 헬스체크 요청
-            if os.environ.get('RENDER_EXTERNAL_URL'):
-                url = f"{os.environ.get('RENDER_EXTERNAL_URL')}/health"
-                requests.get(url, timeout=5)
-                print(f"[Keep-Alive] 헬스체크 완료")
-        except:
-            pass
-
-# 백그라운드 스레드로 keep_alive 실행 (선택사항)
-# 주석 해제하면 서버가 자동으로 깨어있음 유지
-# threading.Thread(target=keep_alive, daemon=True).start()
-
-
 if __name__ == '__main__':
-    # 개발 서버 실행 (프로덕션에서는 gunicorn 사용)
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
