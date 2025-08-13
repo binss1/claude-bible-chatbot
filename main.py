@@ -193,7 +193,7 @@ def generate_claude_response(user_message, bible_verses):
     try:
         # Claude는 기본적으로 빠르므로 타임아웃 걱정 없음
         response = claude_client.messages.create(
-            model="claude-3-5-sonnet-20240620",
+            model="claude-3-5-sonnet-20241022",
             max_tokens=500,  # 토큰 수 줄여서 응답 속도 향상
             temperature=0.7,
             messages=[{"role": "user", "content": prompt}]
