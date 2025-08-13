@@ -211,7 +211,7 @@ def kakao_chatbot():
             thread.start()
             return jsonify({
                 "version": "2.0",
-                "useCallback": True  # ✅ 올바른 파이썬 문법으로 수정
+                "useCallback": True
             })
         else:
             print("⚠️ 경고: callbackUrl 없이 상담 내용이 수신되었습니다. 즉시 응답을 시도합니다.")
