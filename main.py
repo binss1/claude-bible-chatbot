@@ -483,5 +483,5 @@ def keep_alive():
 
 if __name__ == '__main__':
     # 개발 서버 실행 (프로덕션에서는 gunicorn 사용)
-    port = int(os.environ.get('PORT', 5000))
+    port = int(os.environ.get('PORT', 8080))
     app.run(host='0.0.0.0', port=port, debug=False)
