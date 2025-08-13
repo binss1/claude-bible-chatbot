@@ -5,3 +5,4 @@ gunicorn==21.2.0
 python-dotenv==1.0.0
 Werkzeug==2.3.7
 httpx==0.24.1
+requests==2.31.0
