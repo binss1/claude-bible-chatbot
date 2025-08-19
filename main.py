@@ -96,46 +96,36 @@ def get_conversation_context(user_id):
         return ""
     
     context = "=== 이전 대화 내용 ===\n"
-    for msg in session['conversation'][-6:]:  # 최근 6개만
+    for msg in session['conversation'][-4:]:  # 최근 4개만
         role = "상담자" if msg['role'] == 'assistant' else "내담자"
         # 긴 내용은 요약
-        content = msg['content'][:200] + "..." if len(msg['content']) > 200 else msg['content']
+        content = msg['content'][:150] + "..." if len(msg['content']) > 150 else msg['content']
         context += f"{role}: {content}\n"
     context += "================\n\n"
     return context
 
 
-def safe_truncate(text, max_length=950):
-    """텍스트를 안전하게 자르기 (문장 단위)"""
+def safe_truncate(text, max_length=750):
+    """텍스트를 안전하게 자르기 (더 짧게)"""
     if len(text) <= max_length:
         return text
     
-    # 마침표, 느낌표, 물음표로 끝나는 위치 찾기
-    sentences = []
-    current = ""
-    for char in text:
-        current += char
-        if char in '.!?' and len(current.strip()) > 0:
-            sentences.append(current.strip())
-            current = ""
+    # 마지막 완전한 문장 찾기
+    truncated = text[:max_length]
     
-    # 남은 부분 처리
-    if current.strip():
-        sentences.append(current.strip())
+    # 마지막 마침표, 느낌표, 물음표 위치 찾기
+    last_period = truncated.rfind('.')
+    last_exclaim = truncated.rfind('!')
+    last_question = truncated.rfind('?')
     
-    # max_length 이내로 문장 연결
-    result = ""
-    for sentence in sentences:
-        if len(result + sentence) <= max_length - 10:  # 여유 10자
-            result += sentence + " "
-        else:
-            break
+    # 가장 마지막 문장 부호 위치
+    last_sentence = max(last_period, last_exclaim, last_question)
     
-    # 문장이 하나도 들어가지 않으면 강제 자르기
-    if not result:
-        result = text[:max_length-3] + "..."
-    
-    return result.strip()
+    if last_sentence > max_length * 0.7:  # 70% 이상이면 그 위치에서 자르기
+        return truncated[:last_sentence + 1]
+    else:
+        # 너무 짧으면 강제로 자르고 ... 추가
+        return truncated[:max_length-3] + "..."
 
 
 # --- 실제 요청을 처리하는 함수 부분 ---
@@ -162,7 +152,7 @@ def search_bible(keywords):
             expanded_keywords.extend(["사랑", "사랑하", "아끼"])
         elif "기도" in keyword: 
             expanded_keywords.extend(["기도", "간구", "부르짖"])
-        elif "배우자" in keyword or "부부" in keyword or "결혼" in keyword: 
+        elif "배우자" in keyword or "부부" in keyword or "결혼" in keyword or "갈등" in keyword: 
             expanded_keywords.extend(["사랑", "인내", "용서", "화목", "아내", "남편"])
         elif "갈등" in keyword or "다툼" in keyword: 
             expanded_keywords.extend(["화평", "용서", "사랑", "인내", "화목"])
@@ -172,7 +162,7 @@ def search_bible(keywords):
     for verse, content in BIBLE_DATA.items():
         if any(keyword in content for keyword in expanded_keywords):
             search_results.append(f"{verse}: {content}")
-            if len(search_results) >= 3:  # 3개로 줄임
+            if len(search_results) >= 2:  # 2개로 줄임
                 break
     
     return search_results
@@ -185,39 +175,36 @@ def generate_groq_response(user_message, bible_verses, user_id):
     
     session = get_user_session(user_id)
     context = get_conversation_context(user_id)
-    verses_text = "\n".join(bible_verses[:2]) if bible_verses else ""
+    verses_text = "\n".join(bible_verses[:1]) if bible_verses else ""  # 1개만
     
     # 상담 단계별 프롬프트
     stage_prompts = {
-        'initial': "처음 만나는 내담자입니다. 따뜻하게 맞이하고 어떤 마음으로 찾아왔는지 물어보세요.",
-        'exploring': "내담자의 상황을 더 잘 이해하기 위해 구체적인 질문을 해주세요.",
-        'deepening': "핵심 문제를 파악했습니다. 성경적 통찰과 실질적 조언을 제공하세요.",
-        'concluding': "대화가 마무리 단계입니다. 핵심 메시지를 정리하고 격려해주세요."
+        'initial': "처음입니다. 따뜻하게 맞이하세요.",
+        'exploring': "구체적인 질문을 하세요.",
+        'deepening': "성경적 조언을 제공하세요.",
+        'concluding': "격려하며 마무리하세요."
     }
     
     stage_instruction = stage_prompts.get(session['counseling_stage'], "")
     
-    prompt = f"""당신은 한국어를 사용하는 따뜻한 기독교 상담사입니다.
+    prompt = f"""한국어 기독교 상담사입니다.
 {context}
 
-[현재 상담 단계] {session['counseling_stage']}
-{stage_instruction}
+[단계] {stage_instruction}
 
-[성경 구절]
+[성경]
 {verses_text}
 
-[내담자 메시지]
+[내담자]
 {user_message}
 
-[응답 지침]
-- 400자 이내로 간결하게 응답
-- 이전 대화 내용을 참고하여 연속성 있게 대화
-- 내담자의 감정을 먼저 공감하고 인정
-- 구체적인 1-2개의 후속 질문 포함
-- 성경 구절은 짧게 인용
-- 따뜻하고 격려하는 톤 유지
+[중요 지침]
+- 350자 이내로 반드시 제한
+- 공감과 위로 중심
+- 1-2개 질문 포함
+- 마지막은 짧은 격려
 
-한국어로만 응답하세요."""
+한국어로만."""
 
     try:
         models = ["llama3-70b-8192", "llama3-8b-8192", "mixtral-8x7b-32768"]
@@ -226,16 +213,16 @@ def generate_groq_response(user_message, bible_verses, user_id):
                 response = groq_client.chat.completions.create(
                     model=model, 
                     messages=[
-                        {"role": "system", "content": "You are a warm Korean Christian counselor. Respond only in Korean."},
+                        {"role": "system", "content": "Korean Christian counselor. Max 350 chars."},
                         {"role": "user", "content": prompt}
                     ], 
-                    max_tokens=400,  # 줄임
+                    max_tokens=300,  # 줄임
                     temperature=0.7,
                     timeout=10.0
                 )
                 result = response.choices[0].message.content
                 # 길이 체크 및 안전한 자르기
-                result = safe_truncate(result, 900)
+                result = safe_truncate(result, 750)
                 print(f"✅ Groq 응답 길이: {len(result)}자")
                 return result
             except Exception as e:
@@ -248,13 +235,13 @@ def generate_groq_response(user_message, bible_verses, user_id):
 
 
 def generate_claude_response(user_message, bible_verses, user_id):
-    """Claude AI를 사용하여 깊이 있는 응답 생성"""
+    """Claude AI를 사용하여 깊이 있는 응답 생성 (길이 제한 강화)"""
     if not claude_client: 
         return "Claude API가 설정되지 않았습니다."
     
     session = get_user_session(user_id)
     context = get_conversation_context(user_id)
-    verses_text = "\n".join(bible_verses[:2]) if bible_verses else ""
+    verses_text = "\n".join(bible_verses[:1]) if bible_verses else ""  # 1개만
     
     # 대화 횟수에 따라 상담 단계 조정
     conv_count = len(session['conversation'])
@@ -267,44 +254,40 @@ def generate_claude_response(user_message, bible_verses, user_id):
     else:
         session['counseling_stage'] = 'concluding'
     
-    prompt = f"""당신은 깊이 있는 기독교 상담 전문가입니다.
+    # 더 짧고 명확한 프롬프트
+    prompt = f"""한국어 기독교 상담 전문가입니다.
 
 {context}
 
 [상담 단계: {session['counseling_stage']}]
-[핵심 주제: {', '.join(session['key_topics'][-3:]) if session['key_topics'] else '파악 중'}]
 
 [성경 구절]
 {verses_text}
 
-[내담자 메시지]
+[내담자]
 {user_message}
 
-[응답 전략]
-1. 공감과 경청: 내담자의 감정과 상황을 깊이 이해하고 공감
-2. 탐색적 질문: 문제의 근본 원인을 파악하기 위한 열린 질문
-3. 성경적 통찰: 상황에 맞는 성경 원리를 자연스럽게 적용
-4. 실천적 제안: 구체적이고 실행 가능한 단계별 조언
-5. 희망과 격려: 하나님의 사랑과 계획을 상기시키기
+[응답 규칙]
+1. 350자 이내 엄격 제한
+2. 공감 표현으로 시작
+3. 핵심 조언 1-2개
+4. 구체적 질문 1개
+5. 희망의 메시지로 마무리
 
-[중요]
-- 450자 이내로 응답 (카카오톡 제한)
-- 대화의 흐름과 맥락을 유지
-- 내담자가 스스로 통찰을 얻도록 유도
-- 판단보다는 이해와 지지 표현
-
-한국어로 응답하세요."""
+반드시 350자 이내. 한국어만."""
 
     try:
         response = claude_client.messages.create(
             model="claude-3-5-sonnet-20241022",
-            max_tokens=350,  # 대폭 줄임
+            max_tokens=400,  # 약간 늘림
             temperature=0.7,
             messages=[{"role": "user", "content": prompt}]
         )
         result = response.content[0].text
-        # 길이 체크 및 안전한 자르기
-        result = safe_truncate(result, 900)
+        
+        # 더 엄격한 길이 제한
+        result = safe_truncate(result, 750)  # 750자로 제한
+        
         print(f"✅ Claude 응답 길이: {len(result)}자")
         return result
     except Exception as e:
@@ -332,11 +315,13 @@ def process_and_callback(user_id, user_message, callback_url):
         for keyword in keywords:
             if len(keyword) > 2 and keyword not in session['key_topics']:
                 session['key_topics'].append(keyword)
+                if len(session['key_topics']) > 10:
+                    session['key_topics'] = session['key_topics'][-10:]
 
         # 성경 구절 검색
         bible_verses = search_bible(keywords)
         if not bible_verses: 
-            bible_verses = search_bible(["사랑", "위로", "평안", "믿음"])
+            bible_verses = search_bible(["사랑", "위로", "평안"])
 
         print(f"[백그라운드] 모델: {selected_model}, 단계: {session['counseling_stage']}")
         
@@ -345,6 +330,11 @@ def process_and_callback(user_id, user_message, callback_url):
             ai_response = generate_claude_response(user_message, bible_verses, user_id)
         else:
             ai_response = generate_groq_response(user_message, bible_verses, user_id)
+        
+        # 최종 길이 체크 (카카오톡 안전 제한)
+        if len(ai_response) > 750:
+            ai_response = safe_truncate(ai_response, 750)
+            print(f"⚠️ 응답 재조정: {len(ai_response)}자")
         
         # 대화 기록에 AI 응답 추가
         add_to_conversation(user_id, 'assistant', ai_response)
@@ -361,8 +351,8 @@ def process_and_callback(user_id, user_message, callback_url):
         # 상담 단계별 빠른 응답 버튼
         if session['counseling_stage'] in ['initial', 'exploring']:
             response_data["template"]["quickReplies"].extend([
-                {"label": "더 자세히 말씀드릴게요", "action": "message", "messageText": "더 자세히 설명"},
-                {"label": "조언을 듣고 싶어요", "action": "message", "messageText": "조언 부탁"}
+                {"label": "더 듣고 싶어요", "action": "message", "messageText": "더 자세히"},
+                {"label": "조언 부탁해요", "action": "message", "messageText": "조언 부탁"}
             ])
         
         if groq_client and claude_client: 
@@ -373,7 +363,7 @@ def process_and_callback(user_id, user_message, callback_url):
         # 대화 초기화 옵션 (5회 이상 대화 시)
         if len(session['conversation']) > 5:
             response_data["template"]["quickReplies"].append(
-                {"label": "🔄 새로운 상담 시작", "action": "message", "messageText": "새상담"}
+                {"label": "🔄 새 상담 시작", "action": "message", "messageText": "새상담"}
             )
 
         requests.post(callback_url, json=response_data, timeout=10)
@@ -386,7 +376,10 @@ def process_and_callback(user_id, user_message, callback_url):
                 "outputs": [{"simpleText": {"text": "죄송합니다. 잠시 후 다시 시도해주세요."}}]
             }
         }
-        requests.post(callback_url, json=error_response, timeout=10)
+        try:
+            requests.post(callback_url, json=error_response, timeout=10)
+        except:
+            pass
 
 
 @app.route('/kakao', methods=['POST'])
@@ -414,7 +407,7 @@ def kakao_chatbot():
         return jsonify({
             "version": "2.0",
             "template": {
-                "outputs": [{"simpleText": {"text": "🌟 새로운 상담을 시작합니다.\n\n어떤 마음으로 오셨나요?"}}],
+                "outputs": [{"simpleText": {"text": "🌟 새로운 상담을 시작합니다.\n\n어떤 방식을 원하시나요?"}}],
                 "quickReplies": [
                     {"label": "🚀 빠른 상담", "action": "message", "messageText": "빠른상담선택"},
                     {"label": "💎 깊이있는 상담", "action": "message", "messageText": "정밀상담선택"}
@@ -458,7 +451,7 @@ def kakao_chatbot():
         elif user_message == "정밀상담선택" and claude_client:
             session = get_user_session(user_id)
             session['model'] = 'claude'
-            return jsonify({"version": "2.0", "template": {"outputs": [{"simpleText": {"text": "💎 깊이있는 상담 모드입니다.\n\n어떤 고민이 있으신가요?"}}]}})
+            return jsonify({"version": "2.0", "template": {"outputs": [{"simpleText": {"text": "💎 깊이있는 상담 모드입니다.\n\n마음을 나눠주세요."}}]}})
         
         elif user_message == "상담시작하기":
             session = get_user_session(user_id)
@@ -466,7 +459,7 @@ def kakao_chatbot():
                 session['model'] = 'groq'
             elif claude_client and not groq_client: 
                 session['model'] = 'claude'
-            return jsonify({"version": "2.0", "template": {"outputs": [{"simpleText": {"text": "🙏 무엇이든 편하게 말씀해주세요."}}]}})
+            return jsonify({"version": "2.0", "template": {"outputs": [{"simpleText": {"text": "🙏 편하게 말씀해주세요."}}]}})
     
     # AI 상담 처리 (백그라운드)
     else:
@@ -493,6 +486,7 @@ def kakao_chatbot():
             session = get_user_session(user_id)
             add_to_conversation(user_id, 'user', user_message)
             ai_response = generate_groq_response(user_message, search_bible(user_message.split()), user_id)
+            ai_response = safe_truncate(ai_response, 750)  # 안전 제한
             add_to_conversation(user_id, 'assistant', ai_response)
             return jsonify({"version": "2.0", "template": {"outputs": [{"simpleText": {"text": ai_response}}]}})
 
@@ -511,7 +505,7 @@ def health_check():
 
 @app.route('/', methods=['GET'])
 def home():
-    return """<html><head><title>성경 상담 챗봇 API</title><style>body{font-family:Arial,sans-serif;max-width:800px;margin:50px auto;padding:20px}h1{color:#333}.status{background:#f0f0f0;padding:15px;border-radius:5px;margin:20px 0}.feature{background:#e8f8e8;padding:10px;margin:5px 0;border-left:3px solid #4CAF50}code{background:#f4f4f4;padding:2px 5px;border-radius:3px}</style></head><body><h1>🙏 성경 상담 챗봇 API v2.0</h1><div class=status><h2>서비스 상태</h2><p>✅ 서버 정상 작동 중</p><p>📖 카카오톡 채널과 연동됨</p></div><div class=feature><h3>✨ 주요 기능</h3><p>• 대화 기억 기능</p><p>• 단계별 상담 진행</p><p>• 응답 길이 최적화</p><p>• 30분 세션 유지</p></div></body></html>"""
+    return """<html><head><title>성경 상담 챗봇 API</title><style>body{font-family:Arial,sans-serif;max-width:800px;margin:50px auto;padding:20px}h1{color:#333}.status{background:#f0f0f0;padding:15px;border-radius:5px;margin:20px 0}.feature{background:#e8f8e8;padding:10px;margin:5px 0;border-left:3px solid #4CAF50}code{background:#f4f4f4;padding:2px 5px;border-radius:3px}.warning{background:#fff3cd;padding:10px;margin:10px 0;border-left:3px solid #ffc107}</style></head><body><h1>🙏 성경 상담 챗봇 API v2.1</h1><div class=status><h2>서비스 상태</h2><p>✅ 서버 정상 작동 중</p><p>📖 카카오톡 채널과 연동됨</p></div><div class=warning><h3>⚠️ 응답 길이 제한</h3><p>• 카카오톡 제한: 750자</p><p>• 안전한 문장 단위 자르기</p></div><div class=feature><h3>✨ 주요 기능</h3><p>• 대화 기억 기능</p><p>• 단계별 상담 진행</p><p>• 응답 길이 최적화</p><p>• 30분 세션 유지</p></div></body></html>"""
 
 
 if __name__ == '__main__':
